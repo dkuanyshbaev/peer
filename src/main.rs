@@ -1,8 +1,12 @@
 use clap::Clap;
-use futures_channel::mpsc::UnboundedSender;
+use futures_channel::mpsc::{unbounded, UnboundedSender};
 use futures_util::{
+    // future,
     future::{select, Either},
-    SinkExt, StreamExt,
+    // pin_mut,
+    // stream::TryStreamExt,
+    // SinkExt,
+    StreamExt,
 };
 use std::{
     collections::HashMap,
@@ -10,7 +14,9 @@ use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
+// use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
+// use tokio_tungstenite::{accept_async, connect_async, tungstenite::Error};
 use tokio_tungstenite::connect_async;
 use tungstenite::protocol::Message;
 use url::Url;
@@ -28,10 +34,14 @@ struct Opts {
     connect: Option<String>,
 }
 
-async fn handler(peer_map: Peers, stream: TcpStream, address: SocketAddr, period: u64) {
+async fn server(peers: Peers, stream: TcpStream, address: SocketAddr, period: u64) {
     let ws_stream = tokio_tungstenite::accept_async(stream)
         .await
         .expect("Failed to accept");
+
+    // Insert the write part of this peer to the peer map.
+    let (tx, rx) = unbounded();
+    peers.lock().unwrap().insert(address, tx);
 
     let (mut ws_sender, mut ws_receiver) = ws_stream.split();
     let mut interval = tokio::time::interval(Duration::from_secs(period));
@@ -58,15 +68,29 @@ async fn handler(peer_map: Peers, stream: TcpStream, address: SocketAddr, period
                 };
             }
             Either::Right((_, msg_fut_continue)) => {
-                ws_sender
-                    .send(Message::Text("Hello!".to_owned()))
-                    .await
-                    .unwrap();
+                let peers = peers.lock().unwrap();
+                let broadcast_recipients = peers
+                    .iter()
+                    .filter(|(peer_addr, _)| peer_addr != &&address)
+                    .map(|(_, ws_sink)| ws_sink);
+
+                for r in broadcast_recipients {
+                    r.unbounded_send(Message::Text("Hello!".to_owned()))
+                        .unwrap();
+                }
+
                 message_future = msg_fut_continue;
                 tick_future = interval.next();
             }
         }
     }
+
+    println!("{} disconnected", &address);
+    peers.lock().unwrap().remove(&address);
+}
+
+async fn client(peers: Peers, stream: WebSocketStream, address: SocketAddr, period: u64) {
+    //----------------------------------
 }
 
 #[tokio::main]
@@ -82,7 +106,12 @@ async fn main() {
             let (ws_stream, _) = connect_async(url).await.expect("Failed to connect");
             println!("My address is 127.0.0.1:{}", opts.port);
 
-            // TODO: send/print messages
+            // tokio::spawn(client(
+            //     peers.clone(),
+            //     ws_stream,
+            //     server_address,
+            //     opts.period,
+            // ));
         }
         // as server
         None => {
@@ -91,7 +120,7 @@ async fn main() {
             println!("My address is {}", my_address);
 
             while let Ok((stream, address)) = listener.accept().await {
-                tokio::spawn(handler(peers.clone(), stream, address, opts.period));
+                tokio::spawn(server(peers.clone(), stream, address, opts.period));
             }
         }
     }
