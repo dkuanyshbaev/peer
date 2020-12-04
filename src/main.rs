@@ -40,7 +40,7 @@ async fn handler(peers: Peers, stream: TcpStream, address: SocketAddr, period: u
     let (tx, rx) = unbounded();
     peers.lock().unwrap().insert(address, tx);
 
-    let (ws_sender, mut ws_receiver) = ws_stream.split();
+    let (mut ws_sender, mut ws_receiver) = ws_stream.split();
     let mut interval = tokio::time::interval(Duration::from_secs(period));
 
     let mut message_future = ws_receiver.next();
@@ -67,12 +67,18 @@ async fn handler(peers: Peers, stream: TcpStream, address: SocketAddr, period: u
                 };
             }
             Either::Right((_, msg_fut_continue)) => {
-                let peers = peers.lock().unwrap();
-                for (a, r) in peers.iter() {
-                    println!("Sending message 'Hello!' to {}", a);
-                    r.unbounded_send(Message::Text("Hello!".to_owned()))
-                        .unwrap();
-                }
+                // let peers = peers.lock().unwrap();
+                // for (a, r) in peers.iter() {
+                //     println!("Sending message 'Hello!' to {}", a);
+                //     r.unbounded_send(Message::Text("Hello!".to_owned()))
+                //         .unwrap();
+                // }
+
+                println!("Sending message 'Hello!' to {}", "????");
+                ws_sender
+                    .send(Message::Text("Hello!".to_owned()))
+                    .await
+                    .unwrap();
 
                 message_future = msg_fut_continue;
                 tick_future = interval.next();
@@ -99,7 +105,6 @@ async fn main() {
             println!("My address is {}", my_address);
 
             // let (tx, rx) = unbounded();
-            // let (stdin_tx, stdin_rx) = futures_channel::mpsc::unbounded::<Message>();
 
             let (mut ws_sender, mut ws_receiver) = ws_stream.split();
             let mut interval = tokio::time::interval(Duration::from_secs(opts.period));
@@ -130,7 +135,7 @@ async fn main() {
                     Either::Right((_, msg_fut_continue)) => {
                         println!("Sending message 'Hi!' to {}", server_address);
 
-                        // TODO: send to all
+                        // TODO: send to all peers
 
                         ws_sender
                             .send(Message::Text("Hi!".to_owned()))
