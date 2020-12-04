@@ -28,14 +28,26 @@ struct Opts {
     connect: Option<String>,
 }
 
-async fn handler(peers: Peers, stream: TcpStream, address: SocketAddr, period: u64) {
+async fn handler(
+    peers: Peers,
+    stream: TcpStream,
+    address: SocketAddr,
+    period: u64,
+    server_address: String,
+) {
     let ws_stream = accept_async(stream).await.expect("Failed to accept");
+    let (mut ws_sender, mut ws_receiver) = ws_stream.split();
+    let mut interval = tokio::time::interval(Duration::from_secs(period));
+
+    // send list of known peers in first message
+    let mut peers_list = format!("peers:{}", server_address);
+    for (a, _) in peers.lock().unwrap().iter() {
+        peers_list = format!("{},{}", peers_list, a);
+    }
+    ws_sender.send(Message::Text(peers_list)).await.unwrap();
 
     let (tx, _rx) = unbounded();
     peers.lock().unwrap().insert(address, tx);
-
-    let (mut ws_sender, mut ws_receiver) = ws_stream.split();
-    let mut interval = tokio::time::interval(Duration::from_secs(period));
 
     let mut message_future = ws_receiver.next();
     let mut tick_future = interval.next();
@@ -50,14 +62,15 @@ async fn handler(peers: Peers, stream: TcpStream, address: SocketAddr, period: u
                                 break;
                             }
 
+                            // ------------------------------------------
                             // Forward message
-                            let peers = peers.lock().unwrap();
-                            for (_, r) in peers.iter() {
-                                r.unbounded_send(message.clone()).unwrap();
-                            }
-
+                            // let peers = peers.lock().unwrap();
+                            // for (_, r) in peers.iter() {
+                            //     r.unbounded_send(message.clone()).unwrap();
+                            // }
                             // or print
                             println!("Received message '{}' from {}", message, address);
+                            // ------------------------------------------
                         };
 
                         tick_future = tick_fut_continue;
@@ -111,10 +124,23 @@ async fn main() {
                                     if message.is_close() {
                                         break;
                                     }
-                                    println!(
-                                        "Received message '{}' from {}",
-                                        message, server_address
-                                    );
+                                    if message.to_string().contains("peers") {
+                                        let buf: String = message.to_string().drain(6..).collect();
+                                        let peers_list: Vec<&str> =
+                                            buf.split_terminator(",").collect();
+
+                                        // for i in peers_list {
+                                        //     println!(">{}", i);
+                                        // }
+
+                                        // peers.lock().unwrap().insert(address, tx);
+                                        println!("Connected to the peers at {:?}", peers_list);
+                                    } else {
+                                        println!(
+                                            "Received message '{}' from {}",
+                                            message, server_address
+                                        );
+                                    }
                                 };
 
                                 tick_future = tick_fut_continue;
@@ -142,7 +168,13 @@ async fn main() {
             println!("My address is {}", my_address);
 
             while let Ok((stream, address)) = listener.accept().await {
-                tokio::spawn(handler(peers.clone(), stream, address, opts.period));
+                tokio::spawn(handler(
+                    peers.clone(),
+                    stream,
+                    address,
+                    opts.period,
+                    my_address.clone(),
+                ));
             }
         }
     }
