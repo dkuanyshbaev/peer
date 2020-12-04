@@ -1,11 +1,13 @@
 use clap::Clap;
 use futures_channel::mpsc::{unbounded, UnboundedSender};
 use futures_util::{
-    future,
+    // future,
     future::{select, Either},
-    pin_mut,
-    stream::TryStreamExt,
-    SinkExt, StreamExt, TryFutureExt,
+    // pin_mut,
+    // stream::TryStreamExt,
+    SinkExt,
+    StreamExt,
+    // TryFutureExt,
 };
 use std::{
     collections::HashMap,
@@ -13,9 +15,9 @@ use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+// use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
-use tokio_tungstenite::{accept_async, connect_async, WebSocketStream};
+use tokio_tungstenite::{accept_async, connect_async};
 use tungstenite::protocol::Message;
 use url::Url;
 
@@ -33,13 +35,12 @@ struct Opts {
 }
 
 async fn handler(peers: Peers, stream: TcpStream, address: SocketAddr, period: u64) {
-    let ws_stream = tokio_tungstenite::accept_async(stream)
-        .await
-        .expect("Failed to accept");
+    let ws_stream = accept_async(stream).await.expect("Failed to accept");
 
-    let (tx, rx) = unbounded();
+    //--------------------------------------------------------
+    let (tx, _rx) = unbounded();
     peers.lock().unwrap().insert(address, tx);
-    // TODO: send peers list to client or add to message header
+    //--------------------------------------------------------
 
     let (mut ws_sender, mut ws_receiver) = ws_stream.split();
     let mut interval = tokio::time::interval(Duration::from_secs(period));
@@ -59,6 +60,16 @@ async fn handler(peers: Peers, stream: TcpStream, address: SocketAddr, period: u
                             println!("Received message '{}' from {}", message, address);
                         };
 
+                        //--------------------------------------------------------
+                        // TODO: forward message to all peers ex. sender
+                        // let peers = peers.lock().unwrap();
+                        // for (a, r) in peers.iter() {
+                        //     println!("Sending message 'Hello!' to {}", a);
+                        //     r.unbounded_send(Message::Text("Hello!".to_owned()))
+                        //         .unwrap();
+                        // }
+                        //--------------------------------------------------------
+
                         tick_future = tick_fut_continue;
                         message_future = ws_receiver.next();
                     }
@@ -66,13 +77,6 @@ async fn handler(peers: Peers, stream: TcpStream, address: SocketAddr, period: u
                 };
             }
             Either::Right((_, msg_fut_continue)) => {
-                // let peers = peers.lock().unwrap();
-                // for (a, r) in peers.iter() {
-                //     println!("Sending message 'Hello!' to {}", a);
-                //     r.unbounded_send(Message::Text("Hello!".to_owned()))
-                //         .unwrap();
-                // }
-
                 println!("Sending message 'Hello!' to {}", address);
                 ws_sender
                     .send(Message::Text("Hello!".to_owned()))
@@ -104,7 +108,6 @@ async fn main() {
             println!("My address is {}", my_address);
 
             // let (tx, rx) = unbounded();
-            // TODO: get peers list
 
             let (mut ws_sender, mut ws_receiver) = ws_stream.split();
             let mut interval = tokio::time::interval(Duration::from_secs(opts.period));
@@ -135,9 +138,6 @@ async fn main() {
                     }
                     Either::Right((_, msg_fut_continue)) => {
                         println!("Sending message 'Hi!' to {}", server_address);
-
-                        // TODO: send to all peers
-
                         ws_sender
                             .send(Message::Text("Hi!".to_owned()))
                             .await
