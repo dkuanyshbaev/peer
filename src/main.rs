@@ -67,9 +67,9 @@ async fn handler(peers: Peers, stream: TcpStream, address: SocketAddr, period: u
                 };
             }
             Either::Right((_, msg_fut_continue)) => {
-                println!("send");
                 let peers = peers.lock().unwrap();
-                for (_, r) in peers.iter() {
+                for (a, r) in peers.iter() {
+                    println!("Sending message Hello! to {}", a);
                     r.unbounded_send(Message::Text("Hello!".to_owned()))
                         .unwrap();
                 }
