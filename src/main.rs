@@ -1,13 +1,8 @@
 use clap::Clap;
 use futures_channel::mpsc::{unbounded, UnboundedSender};
 use futures_util::{
-    // future,
     future::{select, Either},
-    // pin_mut,
-    // stream::TryStreamExt,
-    SinkExt,
-    StreamExt,
-    // TryFutureExt,
+    SinkExt, StreamExt,
 };
 use std::{
     collections::HashMap,
@@ -15,7 +10,6 @@ use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
-// use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio_tungstenite::{accept_async, connect_async};
 use tungstenite::protocol::Message;
@@ -37,10 +31,8 @@ struct Opts {
 async fn handler(peers: Peers, stream: TcpStream, address: SocketAddr, period: u64) {
     let ws_stream = accept_async(stream).await.expect("Failed to accept");
 
-    //--------------------------------------------------------
     let (tx, _rx) = unbounded();
     peers.lock().unwrap().insert(address, tx);
-    //--------------------------------------------------------
 
     let (mut ws_sender, mut ws_receiver) = ws_stream.split();
     let mut interval = tokio::time::interval(Duration::from_secs(period));
@@ -57,18 +49,16 @@ async fn handler(peers: Peers, stream: TcpStream, address: SocketAddr, period: u
                             if message.is_close() {
                                 break;
                             }
+
+                            // Forward message
+                            let peers = peers.lock().unwrap();
+                            for (_, r) in peers.iter() {
+                                r.unbounded_send(message.clone()).unwrap();
+                            }
+
+                            // or print
                             println!("Received message '{}' from {}", message, address);
                         };
-
-                        //--------------------------------------------------------
-                        // TODO: forward message to all peers ex. sender
-                        // let peers = peers.lock().unwrap();
-                        // for (a, r) in peers.iter() {
-                        //     println!("Sending message 'Hello!' to {}", a);
-                        //     r.unbounded_send(Message::Text("Hello!".to_owned()))
-                        //         .unwrap();
-                        // }
-                        //--------------------------------------------------------
 
                         tick_future = tick_fut_continue;
                         message_future = ws_receiver.next();
@@ -96,9 +86,8 @@ async fn handler(peers: Peers, stream: TcpStream, address: SocketAddr, period: u
 #[tokio::main]
 async fn main() {
     let opts: Opts = Opts::parse();
-
-    let peers = Peers::new(Mutex::new(HashMap::new()));
     let my_address = format!("127.0.0.1:{}", opts.port);
+    let peers = Peers::new(Mutex::new(HashMap::new()));
 
     match opts.connect {
         // as client
@@ -106,8 +95,6 @@ async fn main() {
             let url = Url::parse(format!("ws://{}", server_address).as_ref()).unwrap();
             let (ws_stream, _) = connect_async(url).await.expect("Failed to connect");
             println!("My address is {}", my_address);
-
-            // let (tx, rx) = unbounded();
 
             let (mut ws_sender, mut ws_receiver) = ws_stream.split();
             let mut interval = tokio::time::interval(Duration::from_secs(opts.period));
