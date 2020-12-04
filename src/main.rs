@@ -121,7 +121,10 @@ async fn main() {
                                     if message.is_close() {
                                         break;
                                     }
-                                    println!("Received message '{}' from {}", message, "????");
+                                    println!(
+                                        "Received message '{}' from {}",
+                                        message, server_address
+                                    );
                                 };
 
                                 tick_future = tick_fut_continue;
