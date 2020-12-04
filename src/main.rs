@@ -57,7 +57,7 @@ async fn handler(peers: Peers, stream: TcpStream, address: SocketAddr, period: u
                             if message.is_close() {
                                 break;
                             }
-                            println!("Received message {} from {}", message, address);
+                            println!("Received message '{}' from {}", message, address);
                         };
 
                         tick_future = tick_fut_continue;
@@ -69,7 +69,7 @@ async fn handler(peers: Peers, stream: TcpStream, address: SocketAddr, period: u
             Either::Right((_, msg_fut_continue)) => {
                 let peers = peers.lock().unwrap();
                 for (a, r) in peers.iter() {
-                    println!("Sending message Hello! to {}", a);
+                    println!("Sending message 'Hello!' to {}", a);
                     r.unbounded_send(Message::Text("Hello!".to_owned()))
                         .unwrap();
                 }
@@ -107,6 +107,8 @@ async fn main() {
             let mut message_future = ws_receiver.next();
             let mut tick_future = interval.next();
 
+            // TODO: get peers list
+
             loop {
                 match select(message_future, tick_future).await {
                     Either::Left((message, tick_fut_continue)) => {
@@ -116,7 +118,7 @@ async fn main() {
                                     if message.is_close() {
                                         break;
                                     }
-                                    println!("Received message {} from {}", message, "????");
+                                    println!("Received message '{}' from {}", message, "????");
                                 };
 
                                 tick_future = tick_fut_continue;
@@ -126,11 +128,9 @@ async fn main() {
                         };
                     }
                     Either::Right((_, msg_fut_continue)) => {
-                        println!("time to send a message!");
-                        // let peers = peers.lock().unwrap();
-                        // for (_, r) in peers.iter() {
-                        //     r.unbounded_send(Message::Text("Hi!".to_owned())).unwrap();
-                        // }
+                        println!("Sending message 'Hi!' to {}", server_address);
+
+                        // TODO: send to all
 
                         ws_sender
                             .send(Message::Text("Hi!".to_owned()))
