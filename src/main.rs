@@ -125,15 +125,10 @@ async fn main() {
                                         break;
                                     }
                                     if message.to_string().contains("peers") {
+                                        // get list of peers from string
                                         let buf: String = message.to_string().drain(6..).collect();
                                         let peers_list: Vec<&str> =
                                             buf.split_terminator(",").collect();
-
-                                        // for i in peers_list {
-                                        //     println!(">{}", i);
-                                        // }
-
-                                        // peers.lock().unwrap().insert(address, tx);
                                         println!("Connected to the peers at {:?}", peers_list);
                                     } else {
                                         println!(
