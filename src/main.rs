@@ -133,9 +133,9 @@ async fn main() {
                         // }
 
                         ws_sender
-                            .send(tungstenite::Message::Text("Hi!".to_string()))
-                            .map_err(|e| ())
-                            .await;
+                            .send(Message::Text("Hi!".to_owned()))
+                            .await
+                            .unwrap();
 
                         message_future = msg_fut_continue;
                         tick_future = interval.next();
