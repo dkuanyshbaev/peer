@@ -38,8 +38,6 @@ async fn handler(peers: Peers, stream: TcpStream, address: SocketAddr, period: u
         .await
         .expect("Failed to accept");
 
-    // TODO: send peers list to client
-
     let (tx, rx) = unbounded();
     peers.lock().unwrap().insert(address, tx);
 
@@ -48,6 +46,8 @@ async fn handler(peers: Peers, stream: TcpStream, address: SocketAddr, period: u
 
     let mut message_future = ws_receiver.next();
     let mut tick_future = interval.next();
+
+    // TODO: send peers list to client
 
     loop {
         match select(message_future, tick_future).await {
@@ -70,8 +70,7 @@ async fn handler(peers: Peers, stream: TcpStream, address: SocketAddr, period: u
             Either::Right((_, msg_fut_continue)) => {
                 println!("send");
                 let peers = peers.lock().unwrap();
-                for (a, r) in peers.iter() {
-                    println!("a: {}", a);
+                for (_, r) in peers.iter() {
                     r.unbounded_send(Message::Text("Hello!".to_owned()))
                         .unwrap();
                 }
@@ -100,22 +99,22 @@ async fn main() {
             let (ws_stream, _) = connect_async(url).await.expect("Failed to connect");
             println!("My address is {}", my_address);
 
-            let (mut sink, stream) = ws_stream.split();
+            // let (tx, rx) = unbounded();
+            // let (stdin_tx, stdin_rx) = futures_channel::mpsc::unbounded::<Message>();
+
+            let (mut ws_sender, mut ws_receiver) = ws_stream.split();
+            let mut interval = tokio::time::interval(Duration::from_secs(opts.period));
+
+            let mut message_future = ws_receiver.next();
+            let mut tick_future = interval.next();
+
             loop {
-                sink.send(tungstenite::Message::Text("yo!".to_string()))
+                ws_sender
+                    .send(tungstenite::Message::Text("Hi!".to_string()))
                     .map_err(|e| ())
                     .await;
             }
 
-            // let (tx, rx) = unbounded();
-            // let (stdin_tx, stdin_rx) = futures_channel::mpsc::unbounded::<Message>();
-
-            // let (ws_sender, mut ws_receiver) = ws_stream.split();
-            // let mut interval = tokio::time::interval(Duration::from_secs(opts.period));
-            //
-            // let mut message_future = ws_receiver.next();
-            // let mut tick_future = interval.next();
-            //
             // loop {
             //     match select(message_future, tick_future).await {
             //         Either::Left((message, tick_fut_continue)) => {
