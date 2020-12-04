@@ -39,14 +39,13 @@ async fn handler(peers: Peers, stream: TcpStream, address: SocketAddr, period: u
 
     let (tx, rx) = unbounded();
     peers.lock().unwrap().insert(address, tx);
+    // TODO: send peers list to client or add to message header
 
     let (mut ws_sender, mut ws_receiver) = ws_stream.split();
     let mut interval = tokio::time::interval(Duration::from_secs(period));
 
     let mut message_future = ws_receiver.next();
     let mut tick_future = interval.next();
-
-    // TODO: send peers list to client or add to message header
 
     loop {
         match select(message_future, tick_future).await {
@@ -74,7 +73,7 @@ async fn handler(peers: Peers, stream: TcpStream, address: SocketAddr, period: u
                 //         .unwrap();
                 // }
 
-                println!("Sending message 'Hello!' to {}", "????");
+                println!("Sending message 'Hello!' to {}", address);
                 ws_sender
                     .send(Message::Text("Hello!".to_owned()))
                     .await
@@ -105,14 +104,13 @@ async fn main() {
             println!("My address is {}", my_address);
 
             // let (tx, rx) = unbounded();
+            // TODO: get peers list
 
             let (mut ws_sender, mut ws_receiver) = ws_stream.split();
             let mut interval = tokio::time::interval(Duration::from_secs(opts.period));
 
             let mut message_future = ws_receiver.next();
             let mut tick_future = interval.next();
-
-            // TODO: get peers list
 
             loop {
                 match select(message_future, tick_future).await {
