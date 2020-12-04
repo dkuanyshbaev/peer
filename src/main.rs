@@ -15,8 +15,7 @@ use std::{
 };
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
-// use tokio_tungstenite::{accept_async, connect_async, tungstenite::Error};
-use tokio_tungstenite::{connect_async, WebSocketStream};
+use tokio_tungstenite::{accept_async, connect_async, WebSocketStream};
 use tungstenite::protocol::Message;
 use url::Url;
 
@@ -47,7 +46,7 @@ async fn handler(peers: Peers, stream: TcpStream, address: SocketAddr, period: u
     let mut message_future = ws_receiver.next();
     let mut tick_future = interval.next();
 
-    // TODO: send peers list to client
+    // TODO: send peers list to client or add to message header
 
     loop {
         match select(message_future, tick_future).await {
@@ -109,43 +108,40 @@ async fn main() {
             let mut tick_future = interval.next();
 
             loop {
-                ws_sender
-                    .send(tungstenite::Message::Text("Hi!".to_string()))
-                    .map_err(|e| ())
-                    .await;
-            }
+                match select(message_future, tick_future).await {
+                    Either::Left((message, tick_fut_continue)) => {
+                        match message {
+                            Some(message) => {
+                                if let Ok(message) = message {
+                                    if message.is_close() {
+                                        break;
+                                    }
+                                    println!("Received message {} from {}", message, "????");
+                                };
 
-            // loop {
-            //     match select(message_future, tick_future).await {
-            //         Either::Left((message, tick_fut_continue)) => {
-            //             println!("we have a message! {:?}", message);
-            //             match message {
-            //                 Some(message) => {
-            //                     if let Ok(message) = message {
-            //                         if message.is_close() {
-            //                             break;
-            //                         }
-            //                         println!("Received message {} from {}", message, my_address);
-            //                     };
-            //
-            //                     tick_future = tick_fut_continue;
-            //                     message_future = ws_receiver.next();
-            //                 }
-            //                 None => break,
-            //             };
-            //         }
-            //         Either::Right((_, msg_fut_continue)) => {
-            //             println!("time to send a message!");
-            //             // let peers = peers.lock().unwrap();
-            //             // for (_, r) in peers.iter() {
-            //             //     r.unbounded_send(Message::Text("Hi!".to_owned())).unwrap();
-            //             // }
-            //
-            //             message_future = msg_fut_continue;
-            //             tick_future = interval.next();
-            //         }
-            //     }
-            // }
+                                tick_future = tick_fut_continue;
+                                message_future = ws_receiver.next();
+                            }
+                            None => break,
+                        };
+                    }
+                    Either::Right((_, msg_fut_continue)) => {
+                        println!("time to send a message!");
+                        // let peers = peers.lock().unwrap();
+                        // for (_, r) in peers.iter() {
+                        //     r.unbounded_send(Message::Text("Hi!".to_owned())).unwrap();
+                        // }
+
+                        ws_sender
+                            .send(tungstenite::Message::Text("Hi!".to_string()))
+                            .map_err(|e| ())
+                            .await;
+
+                        message_future = msg_fut_continue;
+                        tick_future = interval.next();
+                    }
+                }
+            }
         }
         // as server
         None => {
