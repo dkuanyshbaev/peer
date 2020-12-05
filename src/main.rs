@@ -118,7 +118,15 @@ async fn handle_connection(
     for (a, _) in peers.lock().unwrap().iter() {
         peers_list = format!("{},{}", peers_list, a);
     }
-    ws_sender.send(Message::Text(peers_list)).await.unwrap();
+    ws_sender
+        .send(Message::Text(peers_list.clone()))
+        .await
+        .unwrap();
+
+    // list of peers to print without server
+    // let peers_list_to_print: String = peers_list.to_string().drain(6..).collect();
+    // let mut peers_list_to_print: Vec<&str> = peers_list_to_print.split_terminator(",").collect();
+    // peers_list_to_print.retain(|&p| p != server_address);
 
     let (tx, rx) = unbounded();
     peers.lock().unwrap().insert(address, tx);
@@ -146,6 +154,7 @@ async fn handle_connection(
     loop {
         tokio::select! {
             _ = &mut tick_future => {
+                // println!("Sending message Hello! to {:?}", peers_list_to_print);
                 println!("Sending message Hello! to {}", "all");
                 let peers = peers.lock().unwrap();
                 let broadcast_recipients = peers
