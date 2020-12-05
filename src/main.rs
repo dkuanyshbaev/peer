@@ -123,11 +123,6 @@ async fn handle_connection(
         .await
         .unwrap();
 
-    // list of peers to print without server
-    // let peers_list_to_print: String = peers_list.to_string().drain(6..).collect();
-    // let mut peers_list_to_print: Vec<&str> = peers_list_to_print.split_terminator(",").collect();
-    // peers_list_to_print.retain(|&p| p != server_address);
-
     let (tx, rx) = unbounded();
     peers.lock().unwrap().insert(address, tx);
 
@@ -154,16 +149,9 @@ async fn handle_connection(
     loop {
         tokio::select! {
             _ = &mut tick_future => {
-                // println!("Sending message Hello! to {:?}", peers_list_to_print);
                 println!("Sending message Hello! to {}", "all");
-                let peers = peers.lock().unwrap();
-                let broadcast_recipients = peers
-                    .iter()
-                    .filter(|(peer_addr, _)| peer_addr != &&address)
-                    .map(|(_, ws_sink)| ws_sink);
-
-                for recp in broadcast_recipients {
-                    recp.unbounded_send(Message::Text(format!("Hello! from {}", server_address))).unwrap();
+                for (_, r) in peers.lock().unwrap().iter() {
+                    r.unbounded_send(Message::Text(format!("Hello! from {}", server_address))).unwrap();
                 };
             }
             _ = &mut broadcast_incoming => {
