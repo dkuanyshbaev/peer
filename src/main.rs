@@ -11,6 +11,10 @@
 //! Example run:
 //! peer --period=4 --port=8080
 //! peer --period=2 --port=8081 --connect="127.0.0.1:8080"
+//!
+//! Known issues:
+//! - wrong ports in log
+//! - show full list of peers on message send
 
 use clap::Clap;
 use futures_channel::mpsc::{unbounded, UnboundedSender};
@@ -61,14 +65,14 @@ async fn main() {
     // with "--connect" option start as a client
     // otherwise start as a server
     match opts.connect {
-        // as client
+        // as a client
         Some(server_address) => {
             // connect to the TCP listener
             let url = Url::parse(format!("ws://{}", server_address).as_ref()).unwrap();
             let (ws_stream, _) = connect_async(url).await.expect("Failed to connect");
             client_handler(ws_stream, opts.period, opts.port).await;
         }
-        // as server
+        // as a server
         None => {
             // create the TCP listener we'll accept connections on
             // and spawn the handling of each connection in a separate task
